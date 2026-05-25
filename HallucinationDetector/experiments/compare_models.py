@@ -17,20 +17,13 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 from src.data_loader import load_truthfulqa
 from src.model_loader import load_model, generate_response_with_probs
 
-# Список моделей: можешь оставить только одну (закомментируй вторую)
 MODELS = [
-    #("Qwen/Qwen2.5-3B-Instruct", "Qwen-3B"),
-    ("mistralai/Mistral-7B-Instruct-v0.2", "Mistral-7B"),  # раскомментируй если нужно
+    ("Qwen/Qwen2.5-3B-Instruct", "Qwen-3B"),
+    ("mistralai/Mistral-7B-Instruct-v0.2", "Mistral-7B"),  
 ]
 
 
 def simple_hallucination_label(response, correct_answer):
-    """
-    Автоматическая метка: 1 - галлюцинация, 0 - правда.
-    Правило: если правильный ответ (целиком, без учёта регистра) содержится в ответе модели → правда.
-    Иначе → галлюцинация.
-    (Можно усложнить, но для курсовой сойдёт)
-    """
     resp_clean = response.lower().strip()
     correct_clean = correct_answer.lower().strip()
     if correct_clean in resp_clean:
@@ -56,7 +49,6 @@ def run_experiment_for_model(model_name, model_label, df, sample_size=20):
         print(f"Ответ: {resp[:150]}...")
         print(f"Вероятность: {prob:.4f}")
 
-        # Автоматическая метка
         label = simple_hallucination_label(resp, correct)
         print(f"Автометка: {'галлюцинация' if label == 1 else 'правда'}")
 
@@ -93,7 +85,6 @@ def evaluate_and_plot(df_results, model_label):
     print(f"Recall:    {rec:.4f}")
     print(f"F1-score:  {f1:.4f}")
 
-    # Матрица ошибок
     cm = confusion_matrix(y_true, y_pred)
     disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=['Truthful', 'Hallucination'])
     disp.plot(cmap='Blues')
@@ -101,7 +92,6 @@ def evaluate_and_plot(df_results, model_label):
     plt.savefig(f'{model_label}_cm.png', dpi=150)
     plt.show()
 
-    # Гистограмма вероятностей
     plt.figure()
     truthful = df_results[df_results['auto_label'] == 0]['avg_prob']
     hall = df_results[df_results['auto_label'] == 1]['avg_prob']
@@ -119,7 +109,7 @@ def evaluate_and_plot(df_results, model_label):
 
 
 def main():
-    N = 20  # количество примеров (можно увеличить до 30-40, но дольше)
+    N = 20  
     print(f"Загружаем {N} примеров из TruthfulQA...")
     df = load_truthfulqa(sample_size=N)
 
@@ -129,7 +119,6 @@ def main():
         metrics = evaluate_and_plot(df_res, model_label)
         all_metrics[model_label] = metrics
 
-    # Сравнительная диаграмма (если больше одной модели)
     if len(all_metrics) > 1:
         models = list(all_metrics.keys())
         metrics_list = ['accuracy', 'precision', 'recall', 'f1']
