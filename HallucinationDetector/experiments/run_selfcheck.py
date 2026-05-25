@@ -15,15 +15,13 @@ from src.model_loader import load_model, generate_response_with_probs
 from src.detectors.selfcheck import run_selfcheck_consistency
 
 def simple_hallucination_label(response, correct_answer):
-    # Упрощённая автометка для truthfulness
-    # Если лучший ответ содержится в ответе модели (без учёта регистра) -> правда (0), иначе -> галлюцинация (1)
     if correct_answer.lower() in response.lower():
         return 0
     else:
         return 1
 
 def main():
-    N = 10  # количество примеров
+    N = 10 
     print(f"Загружаем {N} примеров из TruthfulQA...")
     df = load_truthfulqa(sample_size=N)
 
@@ -39,19 +37,16 @@ def main():
         print(f"\n--- Обработка вопроса {idx+1}/{N} ---")
         print(f"Q: {question[:100]}...")
 
-        # 1. Получаем ответ и вероятность токенов
         response, avg_prob = generate_response_with_probs(model, tokenizer, question)
         print(f"Ответ модели: {response[:150]}...")
         print(f"Средняя вероятность токенов (Token Probability): {avg_prob:.4f}")
 
-        # 2. Запускаем SelfCheckGPT
         selfcheck_score, selfcheck_error = run_selfcheck_consistency(model, tokenizer, question, response, num_samples=3)
         if selfcheck_error:
             print(f"    SelfCheckGPT завершился с ошибкой: {selfcheck_error}")
         else:
             print(f"Оценка SelfCheckGPT: {selfcheck_score:.4f} (0=согласован, 1=галлюцинация)")
 
-        # 3. Ставим автометку на основе правильного ответа
         label = simple_hallucination_label(response, correct_answer)
         print(f"Автометка (truthful=0, hallucination=1): {label}")
 
@@ -64,30 +59,21 @@ def main():
             'auto_label': label,
         })
 
-    # Сохраняем результаты
     df_results = pd.DataFrame(results)
     output_path = Path(__file__).parent.parent / "data" / "results" / "selfcheck_qwen_results.csv"
     output_path.parent.mkdir(parents=True, exist_ok=True)
     df_results.to_csv(output_path, index=False, encoding='utf-8')
     print(f"\nРезультаты сохранены в {output_path}")
 
-    # --- Анализ и сравнение методов ---
-    # Вычисляем предсказания для Token Probability (порог 0.7)
     df_results['pred_token'] = (df_results['token_prob'] < 0.7).astype(int)
-
-    # Вычисляем предсказания для SelfCheck (порог 0.5, так как это оценка несогласованности)
-    # Для SelfCheck более высокий `selfcheck_score` означает более высокий риск галлюцинации.
     df_results['pred_selfcheck'] = (df_results['selfcheck_score'] > 0.5).astype(int)
-
     y_true = df_results['auto_label']
 
-    # Метрики для Token Probability
     acc_token = accuracy_score(y_true, df_results['pred_token'])
     prec_token = precision_score(y_true, df_results['pred_token'], zero_division=0)
     rec_token = recall_score(y_true, df_results['pred_token'], zero_division=0)
     f1_token = f1_score(y_true, df_results['pred_token'], zero_division=0)
 
-    # Метрики для SelfCheck
     acc_sc = accuracy_score(y_true, df_results['pred_selfcheck'])
     prec_sc = precision_score(y_true, df_results['pred_selfcheck'], zero_division=0)
     rec_sc = recall_score(y_true, df_results['pred_selfcheck'], zero_division=0)
@@ -103,7 +89,6 @@ def main():
     print(f"{'Recall':<15} {rec_token:<25.4f} {rec_sc:<25.4f}")
     print(f"{'F1-Score':<15} {f1_token:<25.4f} {f1_sc:<25.4f}")
 
-    #  (Опционально) Построим простой график для сравнения
     metrics_df = pd.DataFrame({
         'Metric': ['Accuracy', 'Precision', 'Recall', 'F1-Score'],
         'Token Probability': [acc_token, prec_token, rec_token, f1_token],
